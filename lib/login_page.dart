@@ -1,27 +1,79 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:login_jycho/home_page.dart';
-
-class LoginApp extends StatelessWidget {
-  const LoginApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      home: LoginPage(),
-    );
-  }
-}
+import 'package:http/http.dart' as http;
+import 'package:login_jycho/join_page.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  const LoginPage({Key? key}) : super(key: key);
 
   @override
   _LoginPageState createState() => _LoginPageState();
 }
 
 class _LoginPageState extends State<LoginPage> {
+  late String errormsg;
+  late bool error, showprogress;
+  late String username, password;
+
   TextEditingController idController = TextEditingController();
   TextEditingController passwordController = TextEditingController();
+
+  // apiurl = "http://192.168.1.22/login.php";
+  Future<bool> startLogin() async {
+    String apiurl = "http://192.168.0.28/login.php";
+    username = idController.text;
+    password = passwordController.text;
+
+    var response = await http.post(Uri.parse(apiurl), body: {
+      'username': username,
+      'password': password,
+    });
+
+    if (response.statusCode == 200) {
+      var jsondata = json.decode(response.body);
+      if (jsondata["error"]) {
+        setState(() {
+          showprogress = false;
+          error = true;
+          errormsg = jsondata["message"];
+        });
+        return false; // 로그인 실패
+      } else {
+        if (jsondata["success"]) {
+          setState(() {
+            error = false;
+            showprogress = false;
+          });
+          // 로그인에 성공한 경우
+          // 여기에서 필요한 처리를 추가하세요.
+          return true; // 로그인 성공
+        } else {
+          showprogress = false;
+          error = true;
+          errormsg = "로그인에 실패했습니다.";
+          return false; // 로그인 실패
+        }
+      }
+    } else {
+      setState(() {
+        showprogress = false;
+        error = true;
+        errormsg = "서버에 연결 중 오류가 발생했습니다.";
+      });
+      return false; // 로그인 실패
+    }
+  }
+
+  @override
+  void initState() {
+    username = "";
+    password = "";
+    errormsg = "";
+    error = false;
+    showprogress = false;
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +95,7 @@ class _LoginPageState extends State<LoginPage> {
             SizedBox(height: 20.0),
             TextField(
               controller: passwordController,
-              obscureText: true, // 비밀번호를 숨기려면 true로 설정
+              obscureText: true,
               decoration: InputDecoration(
                 labelText: '비밀번호',
               ),
@@ -51,18 +103,44 @@ class _LoginPageState extends State<LoginPage> {
             SizedBox(height: 20.0),
             ElevatedButton(
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => HomePage()),
-                );
-                // 로그인 버튼을 눌렀을 때 실행할 코드를 여기에 추가하세요.
+                startLogin().then((success) {
+                  if (success) {
+                    // 로그인 성공 시 다음 화면으로 이동
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => HomePage()),
+                    );
+                  } else {
+                    // 로그인 실패 시 오류 메시지를 표시
+                    showDialog(
+                      context: context,
+                      builder: (context) {
+                        return AlertDialog(
+                          title: Text('로그인 실패'),
+                          content: Text(errormsg), // 오류 메시지 표시
+                          actions: <Widget>[
+                            ElevatedButton(
+                              onPressed: () {
+                                Navigator.of(context).pop(); // 팝업 닫기
+                              },
+                              child: Text('확인'),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  }
+                });
               },
               child: Text('로그인'),
             ),
             SizedBox(height: 10.0),
             TextButton(
               onPressed: () {
-                // 회원가입 버튼을 눌렀을 때 실행할 코드를 여기에 추가하세요.
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => JoinPage()),
+                );
               },
               child: Text('회원가입'),
             ),
