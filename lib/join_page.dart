@@ -52,6 +52,24 @@ class _JoinPageState extends State<JoinPage> {
     }
   }
 
+  Future<void> registerUser() async {
+    final url = Uri.parse("http://192.168.0.28/join.php");
+    final response = await http.post(url, body: {
+      'username': idController.text,
+      'password': passwordController.text,
+      'fullname': nameController.text,
+      'address': addressController.text,
+    });
+
+    if (response.statusCode == 200) {
+      // 서버에서 온 응답을 처리할 수 있습니다.
+      print("User registered successfully");
+    } else {
+      // 오류 처리
+      print("Error registering user");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -155,12 +173,13 @@ class _JoinPageState extends State<JoinPage> {
                         confirmPasswordController.text.isNotEmpty &&
                         nameController.text.isNotEmpty &&
                         addressController.text.isNotEmpty) {
+                      registerUser(); // database 행 추가
                       showDialog(
                         context: context,
                         builder: (context) {
                           return AlertDialog(
                             title: Text('회원가입 완료'),
-                            content: Text('다시 로그인 해주세요'),
+                            content: Text('회원가입을 축하드립니다.'),
                             actions: <Widget>[
                               ElevatedButton(
                                 onPressed: () {

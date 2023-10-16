@@ -1,8 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:login_jycho/home_page.dart';
 import 'package:http/http.dart' as http;
+import 'package:login_jycho/home_page.dart';
 import 'package:login_jycho/join_page.dart';
+import 'package:login_jycho/main.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -15,12 +18,25 @@ class _LoginPageState extends State<LoginPage> {
   late String errormsg;
   late bool error, showprogress;
   late String username, password;
+  bool autoLogin = false; // Store automatic login status
 
   TextEditingController idController = TextEditingController();
   TextEditingController passwordController = TextEditingController();
 
-  // apiurl = "http://192.168.1.22/login.php";
-  Future<bool> startLogin() async {
+  @override
+  void initState() {
+    super.initState();
+    // Check if the user is already logged in
+    SharedPreferences.getInstance().then((prefs) {
+      if (prefs.getBool('isLoggedIn') == true) {
+        Navigator.pushReplacement(
+            context, MaterialPageRoute(builder: (context) => HomePage()));
+      }
+    });
+  }
+
+  Future<void> _handleLogin() async {
+    // 로그인 처리
     String apiurl = "http://192.168.0.28/login.php";
     username = idController.text;
     password = passwordController.text;
@@ -38,21 +54,24 @@ class _LoginPageState extends State<LoginPage> {
           error = true;
           errormsg = jsondata["message"];
         });
-        return false; // 로그인 실패
       } else {
         if (jsondata["success"]) {
           setState(() {
             error = false;
             showprogress = false;
           });
-          // 로그인에 성공한 경우
-          // 여기에서 필요한 처리를 추가하세요.
-          return true; // 로그인 성공
+
+          if (autoLogin) {
+            SharedPreferences prefs = await SharedPreferences.getInstance();
+            prefs.setBool('isLoggedIn', true);
+          }
+
+          Navigator.push(
+              context, MaterialPageRoute(builder: (context) => HomePage()));
         } else {
           showprogress = false;
           error = true;
           errormsg = "로그인에 실패했습니다.";
-          return false; // 로그인 실패
         }
       }
     } else {
@@ -61,25 +80,40 @@ class _LoginPageState extends State<LoginPage> {
         error = true;
         errormsg = "서버에 연결 중 오류가 발생했습니다.";
       });
-      return false; // 로그인 실패
     }
+
+    // 로그인이 성공하면 로그인 상태를 설정합니다.
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    // 로그인 성공 시 authProvider의 autoLogin 속성을 true로 설정하여 자동 로그인 상태로 표시
+    authProvider.autoLogin = true;
+
+    // Save the autoLogin state in SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setBool('autoLogin', authProvider.autoLogin);
   }
 
-  @override
-  void initState() {
-    username = "";
-    password = "";
-    errormsg = "";
-    error = false;
-    showprogress = false;
-    super.initState();
+  void _handleLogout() async {
+    // Handle logout
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    prefs.setBool('isLoggedIn', false);
+    Navigator.pushReplacement(
+        context, MaterialPageRoute(builder: (context) => LoginPage()));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('로그인 화면'),
+        title: Text('로그인화면'),
+        actions: [
+          if (Provider.of<AuthProvider>(context)
+              .autoLogin) // Show logout button if autoLogin is enabled
+            IconButton(
+              icon: Icon(Icons.logout),
+              onPressed: _handleLogout,
+            ),
+        ],
       ),
       body: Padding(
         padding: EdgeInsets.all(16.0),
@@ -102,36 +136,7 @@ class _LoginPageState extends State<LoginPage> {
             ),
             SizedBox(height: 20.0),
             ElevatedButton(
-              onPressed: () {
-                startLogin().then((success) {
-                  if (success) {
-                    // 로그인 성공 시 다음 화면으로 이동
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => HomePage()),
-                    );
-                  } else {
-                    // 로그인 실패 시 오류 메시지를 표시
-                    showDialog(
-                      context: context,
-                      builder: (context) {
-                        return AlertDialog(
-                          title: Text('로그인 실패'),
-                          content: Text(errormsg), // 오류 메시지 표시
-                          actions: <Widget>[
-                            ElevatedButton(
-                              onPressed: () {
-                                Navigator.of(context).pop(); // 팝업 닫기
-                              },
-                              child: Text('확인'),
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  }
-                });
-              },
+              onPressed: _handleLogin,
               child: Text('로그인'),
             ),
             SizedBox(height: 10.0),
@@ -143,6 +148,19 @@ class _LoginPageState extends State<LoginPage> {
                 );
               },
               child: Text('회원가입'),
+            ),
+            Row(
+              children: [
+                Checkbox(
+                  value: autoLogin,
+                  onChanged: (value) {
+                    setState(() {
+                      autoLogin = value ?? false;
+                    });
+                  },
+                ),
+                Text('자동로그인'),
+              ],
             ),
           ],
         ),
